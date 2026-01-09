@@ -1,0 +1,8 @@
+# Ignoriere alle Dateien im Output-Ordner
+output/*
+# ...aber behalte eine leere .gitkeep Datei, damit der Ordner existiert (optional)
+!output/.gitkeep
+
+# Ignoriere temporäre Systemdateien
+.DS_Store
+__pycache__/
