@@ -9,5 +9,6 @@ __pycache__/
 
 # Ignore everything under data/ except specific accession lists
 #data/**
-!data/**/reference_accessions.txt
-!data/**/SRR_Acc_List.txt
+#!data/**/reference_accessions.txt
+#!data/**/SRR_Acc_List.txt
+/data/**/*.ebwt
