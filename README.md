@@ -3,7 +3,7 @@
 Simple pipeline around ViReMa to download SRR data, run mapping, compile results, and generate plots.
 
 ## Requirements
-
+- create conda env: conda create -n virema_stable python=3.10 bowtie
 - Python 3.10+
 - bowtie in PATH (bowtie, bowtie-build, bowtie-inspect)
 - Python packages: numpy, pandas, matplotlib
