@@ -12,3 +12,4 @@ __pycache__/
 #!data/**/reference_accessions.txt
 #!data/**/SRR_Acc_List.txt
 /data/**/*.ebwt
+/data/**/*.fasta
