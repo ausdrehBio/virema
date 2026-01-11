@@ -20,7 +20,7 @@ def prepare_reference():
         raise ValueError(f"No accession IDs found in {pathto}")
     
     output_dir = Path(pathto).parent
-    output_file = f"{output_dir}/PR8_AF_Reference_padded.fasta"
+    output_file = f"{output_dir}/Reference_padded.fasta"
     os.makedirs(output_dir, exist_ok=True)
     
     print("Downloading Reference Genome...")

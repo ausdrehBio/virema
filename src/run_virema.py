@@ -12,16 +12,18 @@ VIREMA_SCRIPT = ROOT / "src" / "ViReMa.py"
 COMPILER_SCRIPT = ROOT / "src" / "Compiler_Module.py"
 VISUALIZE_SCRIPT = ROOT / "src" / "visualize.py"
 
-DATASET = "PR8_Giulia"  # "Test_Data", "PR8", or "PR8_Giulia"
-BATCH_MODE = True  # Only supported for PR8_Giulia
-SRR_LIST_FILE = ROOT / "data" / "PR8_Giulia" / "SRR_Acc_List.txt"
+DATA_SUBDIR = "PR8"  # subfolder under data/ with Reference_padded.fasta and SRR_Acc_List.txt
+DATA_DIR = ROOT / "data" / DATA_SUBDIR
+REFERENCE_FILE = DATA_DIR / "Reference_padded.fasta"
+SRR_LIST_FILE = DATA_DIR / "SRR_Acc_List.txt"
+OUTPUT_BASE_DIR = ROOT / "output" / DATA_SUBDIR
+
+BATCH_MODE = True
+SINGLE_SRR = None  # set to a specific SRR when BATCH_MODE is False
 DOWNLOAD_DATA = True
 DOWNLOAD_METHOD = "auto"  # "auto", "ena", or "sra-tools"
 SRA_THREADS = "4"
 
-PR8_READ = "1"  # used only when DATASET == "PR8" ("1" or "2")
-GIULIA_READ = "1"  # used only when DATASET == "PR8_Giulia" ("1" or "2")
-USE_PADDED_REFERENCE = True
 OVERWRITE = True
 OUTPUT_SAM = None  # default: <input_stem>.sam
 EXTRA_VIREMA_ARGS = []  # e.g. ["--Seed", "25", "--MicroInDel_Length", "5"]
@@ -60,31 +62,6 @@ def _redirect_streams(stdout, stderr):
         yield
     finally:
         sys.stdout, sys.stderr = old_stdout, old_stderr
-
-
-def _pr8_reference() -> Path:
-    padded = ROOT / "data" / "PR8" / "PR8_Reference_padded.fasta"
-    if USE_PADDED_REFERENCE and padded.exists():
-        return padded
-    return ROOT / "data" / "PR8" / "PR8_Reference.fasta"
-
-
-def _dataset_paths(dataset: str) -> tuple[Path, Path, Path]:
-    if dataset == "Test_Data":
-        input_path = ROOT / "data" / "Test_Data" / "FHV_10k.txt"
-        reference_path = ROOT / "data" / "Test_Data" / "FHV_Genome.txt"
-        output_dir = ROOT / "output" / "Test_Data"
-    elif dataset == "PR8":
-        input_path = ROOT / "data" / "PR8" / f"SRR16862569_{PR8_READ}.fastq"
-        reference_path = _pr8_reference()
-        output_dir = ROOT / "output" / "PR8"
-    elif dataset == "PR8_Giulia":
-        input_path = ROOT / "data" / "PR8_Giulia" / f"SRR14352105_{GIULIA_READ}.fastq"
-        reference_path = ROOT / "data" / "PR8_Giulia" / "PR8_AF_Reference_padded.fasta"
-        output_dir = ROOT / "output" / "PR8_Giulia"
-    else:
-        raise ValueError('Unknown DATASET. Use "Test_Data", "PR8", or "PR8_Giulia".')
-    return input_path, reference_path, output_dir
 
 
 def _resolve_output_dir(base_dir: Path) -> Path:
@@ -359,12 +336,10 @@ def _run_pipeline(
 
 def main():
     if BATCH_MODE:
-        if DATASET != "PR8_Giulia":
-            raise ValueError("BATCH_MODE is only supported for DATASET == 'PR8_Giulia'.")
         srr_ids = _load_srr_list(SRR_LIST_FILE)
-        data_dir = ROOT / "data" / "PR8_Giulia"
-        reference_path = ROOT / "data" / "PR8_Giulia" / "PR8_AF_Reference_padded.fasta"
-        base_output_dir = ROOT / "output" / "PR8_Giulia"
+        data_dir = DATA_DIR
+        reference_path = REFERENCE_FILE
+        base_output_dir = OUTPUT_BASE_DIR
         for srr_id in srr_ids:
             input_path = _ensure_fastq1(srr_id, data_dir)
             output_dir = base_output_dir / srr_id
@@ -377,8 +352,12 @@ def main():
             )
         return
 
-    input_path, reference_path, output_dir = _dataset_paths(DATASET)
-    _run_pipeline(input_path, reference_path, output_dir, resolve_output_dir=True)
+    srr_id = SINGLE_SRR
+    if not srr_id:
+        srr_ids = _load_srr_list(SRR_LIST_FILE)
+        srr_id = srr_ids[0]
+    input_path = _ensure_fastq1(srr_id, DATA_DIR)
+    _run_pipeline(input_path, REFERENCE_FILE, OUTPUT_BASE_DIR, resolve_output_dir=True)
 
 
 if __name__ == "__main__":
