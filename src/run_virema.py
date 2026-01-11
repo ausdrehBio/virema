@@ -21,7 +21,7 @@ RUN_COMPILER = True
 EXTRA_COMPILER_ARGS = []  # e.g. ["--MicroInDel_Length", "5"]
 COMPILER_SUBDIR = "compiled"
 
-RUN_VISUALIZE = Truew
+RUN_VISUALIZE = True
 PLOTS_SUBDIR = "plots"
 PLOT_CHROMS = []  # empty means all chroms in the BED file
 GENOME_LENGTH = None  # optional int for axis limits
