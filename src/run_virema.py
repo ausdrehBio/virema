@@ -1,8 +1,11 @@
+import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 VIREMA_SCRIPT = ROOT / "src" / "ViReMa.py"
@@ -10,6 +13,12 @@ COMPILER_SCRIPT = ROOT / "src" / "Compiler_Module.py"
 VISUALIZE_SCRIPT = ROOT / "src" / "visualize.py"
 
 DATASET = "PR8_Giulia"  # "Test_Data", "PR8", or "PR8_Giulia"
+BATCH_MODE = True  # Only supported for PR8_Giulia
+SRR_LIST_FILE = ROOT / "data" / "PR8_Giulia" / "SRR_Acc_List.txt"
+DOWNLOAD_DATA = True
+DOWNLOAD_METHOD = "auto"  # "auto", "ena", or "sra-tools"
+SRA_THREADS = "4"
+
 PR8_READ = "1"  # used only when DATASET == "PR8" ("1" or "2")
 GIULIA_READ = "1"  # used only when DATASET == "PR8_Giulia" ("1" or "2")
 USE_PADDED_REFERENCE = True
@@ -83,11 +92,152 @@ def _resolve_output_dir(base_dir: Path) -> Path:
         return base_dir
     return Path(f"{base_dir}{int(time.time())}")
 
+
 def _resolve_child_dir(parent_dir: Path, name: str) -> Path:
     candidate = parent_dir / name
     if not candidate.exists():
         return candidate
     return parent_dir / f"{name}_{int(time.time())}"
+
+
+def _default_sam_name(input_path: Path) -> str:
+    name = input_path.name
+    for suffix in (".fastq.gz", ".fq.gz", ".fastq", ".fq"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)] + ".sam"
+    return f"{input_path.stem}.sam"
+
+
+def _load_srr_list(list_path: Path) -> list[str]:
+    if not list_path.exists():
+        raise FileNotFoundError(f"SRR list not found: {list_path}")
+    srr_ids = []
+    with list_path.open("r") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            srr_ids.append(line.split()[0])
+    if not srr_ids:
+        raise ValueError(f"SRR list is empty: {list_path}")
+    return srr_ids
+
+
+def _download_file(url: str, dest: Path):
+    tmp = dest.with_name(dest.name + ".part")
+    if tmp.exists():
+        tmp.unlink()
+    try:
+        with urllib.request.urlopen(url) as response, tmp.open("wb") as out:
+            shutil.copyfileobj(response, out)
+        tmp.replace(dest)
+    except Exception:
+        if tmp.exists():
+            tmp.unlink()
+        raise
+
+
+def _fetch_ena_fastq_urls(srr_id: str) -> list[str]:
+    api_url = (
+        "https://www.ebi.ac.uk/ena/portal/api/filereport"
+        f"?accession={srr_id}&result=read_run&fields=fastq_ftp&format=tsv"
+    )
+    try:
+        with urllib.request.urlopen(api_url) as response:
+            text = response.read().decode("utf-8")
+    except (HTTPError, URLError) as exc:
+        raise RuntimeError(f"ENA query failed for {srr_id}: {exc}") from exc
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 2:
+        raise RuntimeError(f"No ENA fastq URLs found for {srr_id}")
+
+    fastq_field = lines[1].split("\t")[0]
+    urls = []
+    for entry in fastq_field.split(";"):
+        entry = entry.strip()
+        if not entry:
+            continue
+        urls.append(entry if entry.startswith("http") else f"https://{entry}")
+    if not urls:
+        raise RuntimeError(f"No ENA fastq URLs found for {srr_id}")
+    return urls
+
+
+def _download_via_ena(srr_id: str, dest_dir: Path) -> Path:
+    urls = _fetch_ena_fastq_urls(srr_id)
+    read1_url = next((url for url in urls if url.endswith("_1.fastq.gz")), None)
+    if read1_url is None and len(urls) == 1:
+        read1_url = urls[0]
+    if read1_url is None:
+        raise RuntimeError(f"Could not find read1 URL for {srr_id}")
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / Path(read1_url).name
+    if dest.exists():
+        return dest
+
+    print(f"Downloading {srr_id} read1 from ENA...")
+    _download_file(read1_url, dest)
+    return dest
+
+
+def _download_via_sra_tools(srr_id: str, dest_dir: Path) -> Path:
+    prefetch = shutil.which("prefetch")
+    fasterq = shutil.which("fasterq-dump")
+    if not prefetch or not fasterq:
+        raise FileNotFoundError("sra-tools not found in PATH")
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run([prefetch, srr_id, "--output-directory", str(dest_dir)], check=True)
+
+    sra_path = dest_dir / srr_id / f"{srr_id}.sra"
+    source = str(sra_path) if sra_path.exists() else srr_id
+    cmd = [fasterq, source, "--outdir", str(dest_dir), "--split-files"]
+    if SRA_THREADS:
+        cmd.extend(["--threads", str(SRA_THREADS)])
+    subprocess.run(cmd, check=True)
+
+    fastq = dest_dir / f"{srr_id}_1.fastq"
+    if fastq.exists():
+        return fastq
+    fastq_single = dest_dir / f"{srr_id}.fastq"
+    if fastq_single.exists():
+        return fastq_single
+    raise FileNotFoundError(f"Expected FASTQ output for {srr_id} in {dest_dir}")
+
+
+def _ensure_fastq1(srr_id: str, dest_dir: Path) -> Path:
+    fastq = dest_dir / f"{srr_id}_1.fastq"
+    fastq_gz = dest_dir / f"{srr_id}_1.fastq.gz"
+    fastq_single = dest_dir / f"{srr_id}.fastq"
+    fastq_single_gz = dest_dir / f"{srr_id}.fastq.gz"
+    if fastq.exists():
+        return fastq
+    if fastq_gz.exists():
+        return fastq_gz
+    if fastq_single.exists():
+        return fastq_single
+    if fastq_single_gz.exists():
+        return fastq_single_gz
+    if not DOWNLOAD_DATA:
+        raise FileNotFoundError(f"Missing FASTQ for {srr_id} in {dest_dir}")
+
+    if DOWNLOAD_METHOD in ("auto", "sra-tools"):
+        try:
+            return _download_via_sra_tools(srr_id, dest_dir)
+        except FileNotFoundError:
+            if DOWNLOAD_METHOD == "sra-tools":
+                raise
+        except subprocess.CalledProcessError as exc:
+            if DOWNLOAD_METHOD == "sra-tools":
+                raise
+            print(f"sra-tools failed for {srr_id}: {exc}. Falling back to ENA.")
+
+    if DOWNLOAD_METHOD in ("auto", "ena"):
+        return _download_via_ena(srr_id, dest_dir)
+
+    raise ValueError('Unknown DOWNLOAD_METHOD. Use "auto", "ena", or "sra-tools".')
 
 
 def _run_and_log(cmd, cwd):
@@ -121,9 +271,15 @@ def _find_bed_file(output_dir: Path) -> Path:
     return candidates[-1]
 
 
-def main():
-    input_path, reference_path, output_dir = _dataset_paths(DATASET)
-    output_dir = _resolve_output_dir(output_dir)
+def _run_pipeline(
+    input_path: Path,
+    reference_path: Path,
+    output_dir: Path,
+    resolve_output_dir: bool,
+    label=None,
+):
+    if resolve_output_dir:
+        output_dir = _resolve_output_dir(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     log_path = output_dir / "log.txt"
 
@@ -134,7 +290,7 @@ def main():
     if not reference_path.exists():
         raise FileNotFoundError(f"Reference file not found: {reference_path}")
 
-    output_sam = OUTPUT_SAM or f"{input_path.stem}.sam"
+    output_sam = OUTPUT_SAM or _default_sam_name(input_path)
 
     virema_cmd = [
         sys.executable,
@@ -144,17 +300,19 @@ def main():
         output_sam,
         "--Output_Dir",
         str(output_dir),
+        "-Overwrite",
     ]
-    # Force ViReMa to use the exact output_dir we prepared.
-    virema_cmd.append("-Overwrite")
     virema_cmd.extend(EXTRA_VIREMA_ARGS)
 
     with log_path.open("w") as log_file:
         stdout_tee = _Tee(sys.stdout, log_file)
         stderr_tee = _Tee(sys.stderr, log_file)
         with _redirect_streams(stdout_tee, stderr_tee):
+            if label:
+                print(f"=== Processing {label} ===")
             _run_and_log(virema_cmd, cwd=str(ROOT))
 
+            compiler_output_dir = None
             if RUN_COMPILER:
                 compiler_input = output_dir / output_sam
                 if not COMPILER_SCRIPT.exists():
@@ -197,6 +355,30 @@ def main():
                 if SHOW_PLOTS:
                     visualize_cmd.append("--show")
                 _run_and_log(visualize_cmd, cwd=str(ROOT))
+
+
+def main():
+    if BATCH_MODE:
+        if DATASET != "PR8_Giulia":
+            raise ValueError("BATCH_MODE is only supported for DATASET == 'PR8_Giulia'.")
+        srr_ids = _load_srr_list(SRR_LIST_FILE)
+        data_dir = ROOT / "data" / "PR8_Giulia"
+        reference_path = ROOT / "data" / "PR8_Giulia" / "PR8_AF_Reference_padded.fasta"
+        base_output_dir = ROOT / "output" / "PR8_Giulia"
+        for srr_id in srr_ids:
+            input_path = _ensure_fastq1(srr_id, data_dir)
+            output_dir = base_output_dir / srr_id
+            _run_pipeline(
+                input_path,
+                reference_path,
+                output_dir,
+                resolve_output_dir=False,
+                label=srr_id,
+            )
+        return
+
+    input_path, reference_path, output_dir = _dataset_paths(DATASET)
+    _run_pipeline(input_path, reference_path, output_dir, resolve_output_dir=True)
 
 
 if __name__ == "__main__":

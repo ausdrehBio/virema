@@ -1,20 +1,25 @@
-import urllib.request
 import os
+import urllib.request
+from pathlib import Path
+
+pathto = "data/PR8_Giulia/reference_accessions.txt"
+
+def load_accession_ids(path):
+    ids = []
+    with open(path, "r") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            ids.append(line.split()[0])
+    return ids
 
 def prepare_reference():
-    # Your specific Accession List
-    ids = [
-        "AF389115.1",
-        "AF389116.1",
-        "AF389117.1",
-        "AF389118.1",
-        "AF389119.1",
-        "AF389120.1",
-        "AF389121.1",
-        "AF389122.1"
-    ]
+    ids = load_accession_ids(pathto)
+    if not ids:
+        raise ValueError(f"No accession IDs found in {pathto}")
     
-    output_dir = "data/PR8_Giulia"
+    output_dir = Path(pathto).parent
     output_file = f"{output_dir}/PR8_AF_Reference_padded.fasta"
     os.makedirs(output_dir, exist_ok=True)
     
