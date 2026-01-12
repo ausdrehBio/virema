@@ -2,7 +2,7 @@ import os
 import urllib.request
 from pathlib import Path
 
-pathto = "data/PR8/reference_accessions.txt"
+pathto = "data/Polio_cVDPV2/reference_accessions.txt"
 
 def load_accession_ids(path):
     ids = []

@@ -22,7 +22,7 @@ BATCH_MODE = True
 SINGLE_SRR = None  # set to a specific SRR when BATCH_MODE is False
 DOWNLOAD_DATA = True
 DOWNLOAD_METHOD = "auto"  # "auto", "ena", or "sra-tools"
-SRA_THREADS = "4"
+SRA_THREADS = "4" 
 
 OVERWRITE = True
 OUTPUT_SAM = None  # default: <input_stem>.sam

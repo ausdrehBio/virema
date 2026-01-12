@@ -26,6 +26,7 @@ from os.path import exists
 import gzip
 from os import makedirs
 import argparse
+import csv
 import ConfigViReMa as cfg
 
 # --- ADD THIS LINE HERE ---
@@ -760,6 +761,8 @@ def FindCuttingSitesfromCIGAR(Cigar, Start, MinSegmentLength, Ref):
 
 def ResultsSort(File1):
         SamHeaders = ['@HD', '@SQ', '@RG', '@PG', '@CO']
+        VirusRecs_CSV = None
+        VirusRecs_CSV_Writer = None
 
         ##      -------------------------------------------------------------------------------------------
         ##      WriteFinalDict() will read all the information collated in each Dictionary and write out the
@@ -920,6 +923,16 @@ def ResultsSort(File1):
                                 PseudoRef = "\t" + PseudoLeftSeq + PseudoRightSeq 
                                 BED_OUTPUT += PseudoRef
                             VirusRecs_BED.write(BED_OUTPUT + "\n")
+                            if VirusRecs_CSV_Writer and NAME == 'Deletion':
+                                left = min(Start, Stop)
+                                right = max(Start, Stop)
+                                ref_name = Genes[0]
+                                ref_seq = cfg.Genes[ref_name]
+                                padding = "A" * 160
+                                if ref_seq.endswith(padding):
+                                    ref_seq = ref_seq[:-160]
+                                csv_sequence = ref_seq[:left] + "-" + ref_seq[right - 1:]
+                                VirusRecs_CSV_Writer.writerow([Entry[0], Entry[2], ref_name, csv_sequence])
                         elif TargetFile == VirusInsertions:
                             BED_OUTPUT = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (Genes[0], Entry[0], Entry[2], NAME, Entry[4], Dir, LeftCount, RightCount, DonorLeftSeq + "|" + DonorRightSeq, AcceptorLeftSeq + "|" + AcceptorRightSeq)
                             if cfg.PseudoRef:
@@ -1306,6 +1319,9 @@ def ResultsSort(File1):
                 #Create optional BED files.
                 VirusRecs_BED = open(cfg.Output_Dir + 'BED_Files/' + cfg.FileTag + "Virus_Recombination_Results.bed","w")
                 VirusRecs_BED.write('track name=Virus_Recombinations description="Virus_Recombinations" graphType=junctions\n')                
+                VirusRecs_CSV = open(cfg.Output_Dir + cfg.FileTag + "Virus_Recombination_Results.csv","w", newline="")
+                VirusRecs_CSV_Writer = csv.writer(VirusRecs_CSV)
+                VirusRecs_CSV_Writer.writerow(["Start", "End", "Referenzname", "Sequence"])
                 VirusFusions_BED = open(cfg.Output_Dir + 'BED_Files/' + cfg.FileTag + "Virus_Fusions.BEDPE","w")
                 VirusFusions_BED.write('track name=Virus_Fusions description="Virus_Fusions" graphType=BEDPE\n')
                 if cfg.MicroInDel_Length > 0:
@@ -1382,6 +1398,8 @@ def ResultsSort(File1):
                 pass
         if cfg.BED:
                 VirusRecs_BED.close()
+                if VirusRecs_CSV:
+                        VirusRecs_CSV.close()
                 if cfg.MicroInDel_Length > 0:
                         VirusuRecs_BED.close()
                         VirusFusions_BED.close()
