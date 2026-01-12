@@ -932,7 +932,7 @@ def ResultsSort(File1):
                                 if ref_seq.endswith(padding):
                                     ref_seq = ref_seq[:-160]
                                 csv_sequence = ref_seq[:left] + "-" + ref_seq[right - 1:]
-                                VirusRecs_CSV_Writer.writerow([Entry[0], Entry[2], ref_name, csv_sequence])
+                                VirusRecs_CSV_Writer.writerow([Entry[0], Entry[2], ref_name, Entry[4], csv_sequence])
                         elif TargetFile == VirusInsertions:
                             BED_OUTPUT = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (Genes[0], Entry[0], Entry[2], NAME, Entry[4], Dir, LeftCount, RightCount, DonorLeftSeq + "|" + DonorRightSeq, AcceptorLeftSeq + "|" + AcceptorRightSeq)
                             if cfg.PseudoRef:
@@ -1321,7 +1321,7 @@ def ResultsSort(File1):
                 VirusRecs_BED.write('track name=Virus_Recombinations description="Virus_Recombinations" graphType=junctions\n')                
                 VirusRecs_CSV = open(cfg.Output_Dir + cfg.FileTag + "Virus_Recombination_Results.csv","w", newline="")
                 VirusRecs_CSV_Writer = csv.writer(VirusRecs_CSV)
-                VirusRecs_CSV_Writer.writerow(["Start", "End", "Referenzname", "Sequence"])
+                VirusRecs_CSV_Writer.writerow(["Start", "End", "Referenzname", "NGS_count", "Sequence"])
                 VirusFusions_BED = open(cfg.Output_Dir + 'BED_Files/' + cfg.FileTag + "Virus_Fusions.BEDPE","w")
                 VirusFusions_BED.write('track name=Virus_Fusions description="Virus_Fusions" graphType=BEDPE\n')
                 if cfg.MicroInDel_Length > 0:
