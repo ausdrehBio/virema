@@ -7,12 +7,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
+DATA_SUBDIR = "A_PuertoRico_8_1934"  # subfolder under data/ with Reference_padded.fasta and SRR_Acc_List.txt
+
+
+
+
+
 ROOT = Path(__file__).resolve().parents[1]
 VIREMA_SCRIPT = ROOT / "src" / "ViReMa.py"
 COMPILER_SCRIPT = ROOT / "src" / "Compiler_Module.py"
 VISUALIZE_SCRIPT = ROOT / "src" / "visualize.py"
 
-DATA_SUBDIR = "PR8"  # subfolder under data/ with Reference_padded.fasta and SRR_Acc_List.txt
 DATA_DIR = ROOT / "data" / DATA_SUBDIR
 REFERENCE_FILE = DATA_DIR / "Reference_padded.fasta"
 SRR_LIST_FILE = DATA_DIR / "SRR_Acc_List.txt"

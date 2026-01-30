@@ -1321,7 +1321,7 @@ def ResultsSort(File1):
                 VirusRecs_BED.write('track name=Virus_Recombinations description="Virus_Recombinations" graphType=junctions\n')                
                 VirusRecs_CSV = open(cfg.Output_Dir + cfg.FileTag + "Virus_Recombination_Results.csv","w", newline="")
                 VirusRecs_CSV_Writer = csv.writer(VirusRecs_CSV)
-                VirusRecs_CSV_Writer.writerow(["Start", "End", "Referenzname", "NGS_count", "Sequence"])
+                VirusRecs_CSV_Writer.writerow(["Start", "End", "Reference", "NGS_read_count", "Sequence"])
                 VirusFusions_BED = open(cfg.Output_Dir + 'BED_Files/' + cfg.FileTag + "Virus_Fusions.BEDPE","w")
                 VirusFusions_BED.write('track name=Virus_Fusions description="Virus_Fusions" graphType=BEDPE\n')
                 if cfg.MicroInDel_Length > 0:
